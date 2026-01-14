@@ -16,6 +16,9 @@ const startWorker = async (app) => {
     });
     worker.on("message", (message) => {
         syncComplete = message.syncComplete;
+        if (message.syncComplete) {
+            app.set("is-updating", false);
+        }
     });
     worker.once("exit", (code) => {
         if (code !== 0) {

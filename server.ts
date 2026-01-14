@@ -17,7 +17,7 @@ app.listen(PORT, async () => {
   );
 
   try {
-    // userLeaguesUpdate(app);
+    userLeaguesUpdate(app);
   } catch (err) {
     if (err instanceof Error) {
       console.log(err.message);

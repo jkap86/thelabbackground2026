@@ -8,7 +8,7 @@ app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     const { default: userLeaguesUpdate } = await import("./app/background/user-leagues-update.js");
     try {
-        // userLeaguesUpdate(app);
+        userLeaguesUpdate(app);
     }
     catch (err) {
         if (err instanceof Error) {
