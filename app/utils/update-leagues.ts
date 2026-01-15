@@ -163,6 +163,7 @@ function getLeagueDraftPicks(
 
     for (let i = draftSeason; i <= draftSeason + 2; i++) {
       for (let j = 1; j <= league.settings.draft_rounds; j++) {
+        /*
         const isTraded = tradedPicks.some(
           (tradedPick) =>
             parseInt(tradedPick.season) === i &&
@@ -171,7 +172,7 @@ function getLeagueDraftPicks(
         );
 
         if (isTraded) continue;
-
+        */
         teamDraftPicks.push({
           season: i,
           round: j,

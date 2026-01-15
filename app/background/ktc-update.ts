@@ -2,7 +2,6 @@ import * as workerThreads from "worker_threads";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { Express } from "express";
-import { getKtcLinksToUpdate } from "../utils/ktc-update.js";
 
 const INTERVAL_MINUTES = 30;
 
