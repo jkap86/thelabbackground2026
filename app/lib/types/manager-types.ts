@@ -38,7 +38,7 @@ export type Roster = {
   starters: string[];
   taxi: string[];
   reserve: string[];
-  draftpicks: DraftPick[];
+  draftPicks: DraftPick[];
   wins: number;
   losses: number;
   ties: number;

@@ -163,7 +163,6 @@ function getLeagueDraftPicks(
 
     for (let i = draftSeason; i <= draftSeason + 2; i++) {
       for (let j = 1; j <= league.settings.draft_rounds; j++) {
-        /*
         const isTraded = tradedPicks.some(
           (tradedPick) =>
             parseInt(tradedPick.season) === i &&
@@ -172,7 +171,7 @@ function getLeagueDraftPicks(
         );
 
         if (isTraded) continue;
-        */
+
         teamDraftPicks.push({
           season: i,
           round: j,
@@ -190,6 +189,10 @@ function getLeagueDraftPicks(
   tradedPicks
     .filter((tradedPick) => parseInt(tradedPick.season) >= draftSeason)
     .forEach((tradedPick) => {
+      if (!draftPicks[tradedPick.owner_id]) {
+        draftPicks[tradedPick.owner_id] = [];
+      }
+
       const originalRoster = rosters.find(
         (roster) => roster.roster_id === tradedPick.roster_id
       );
@@ -243,7 +246,7 @@ function getRostersUsernames(
       starters: roster.starters || [],
       taxi: roster.taxi || [],
       reserve: roster.reserve || [],
-      draftpicks: draftPicks?.[roster.roster_id] || [],
+      draftPicks: draftPicks?.[roster.roster_id] || [],
       wins: roster.settings.wins,
       losses: roster.settings.losses,
       ties: roster.settings.ties,
@@ -356,7 +359,7 @@ async function getTrades(
           username: roster.username,
           avatar: roster.avatar,
           players: roster.players,
-          draftPicks: roster.draftpicks,
+          draftPicks: roster.draftPicks,
           wins: roster.wins,
           losses: roster.losses,
           ties: roster.ties,

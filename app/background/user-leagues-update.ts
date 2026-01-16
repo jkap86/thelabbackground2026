@@ -54,10 +54,6 @@ const startWorker = async (app: Express) => {
 };
 
 const updateInterval = async (app: Express) => {
-  if (app.get("is-updating") === undefined) {
-    app.set("is-updating", false);
-  }
-
   const used = process.memoryUsage();
 
   const rss = Math.round((used["rss"] / 1024 / 1024) * 100) / 100;

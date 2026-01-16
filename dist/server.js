@@ -20,7 +20,7 @@ app.listen(PORT, async () => {
     }
     const { default: ktcUpdate } = await import("./app/background/ktc-update.js");
     try {
-        // ktcUpdate(app);
+        ktcUpdate(app);
     }
     catch (err) {
         if (err instanceof Error) {
