@@ -9,8 +9,7 @@ const INCREMENT_LEAGUES = 250;
 const getUserIdsToUpdate = async () => {
   const getUserIdsQuery = `
       SELECT user_id 
-      FROM users 
-      WHERE type IN ('S', 'LM')
+      FROM users
       ORDER BY updated_at ASC 
       LIMIT 25;
     `;
