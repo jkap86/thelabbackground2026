@@ -70,6 +70,9 @@ export const updateKtcDataCurrent = async () => {
                         position_rank,
                     };
                     currentValues.push(ktcPlayerDbUpdate);
+                    if (ktc_map_dynasty[player.slug]?.sync) {
+                        ktc_map_dynasty[player.slug].sync = new Date().getTime();
+                    }
                     if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
                         ktc_unmatched_dynasty.links.push(player.slug);
                     }
@@ -141,7 +144,6 @@ const matchPlayer = (player, allplayers, ktc_map) => {
         const sleeperId = matches[0];
         ktc_map[player.slug] = {
             sleeper_id: sleeperId,
-            sync: new Date().getTime(),
         };
         return { sleeperId };
     }

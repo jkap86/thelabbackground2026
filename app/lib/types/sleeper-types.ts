@@ -96,7 +96,6 @@ export type SleeperDraftDraftPick = {
   round: number;
   draft_slot: number;
   pick_no: number;
-  amount?: number;
   is_keeper: boolean | null;
   metadata: {
     first_name: string;
@@ -104,6 +103,7 @@ export type SleeperDraftDraftPick = {
     position: string;
     team?: string;
     status?: string;
+    amount?: string;
   };
 };
 

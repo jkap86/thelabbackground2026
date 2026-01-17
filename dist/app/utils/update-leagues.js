@@ -49,7 +49,9 @@ export async function updateLeagues(toUpdate, db, week) {
                                     round: pick.round,
                                     draft_slot: pick.draft_slot,
                                     pick_no: pick.pick_no,
-                                    amount: pick.amount ?? null,
+                                    amount: pick.metadata?.amount
+                                        ? parseInt(pick.metadata.amount, 10)
+                                        : null,
                                     is_keeper: pick.is_keeper ?? false,
                                 });
                             }
@@ -298,12 +300,28 @@ async function upsertUsers(users, client) {
     const result = await client.query(upsertUsersQuery, values);
     return result.rows.filter((row) => row.is_insert).length;
 }
+function countSlot(positions, slot) {
+    return positions.filter((p) => p === slot).length;
+}
+function countIdp(positions) {
+    return positions.filter((p) => ["DL", "LB", "DB", "IDP_FLEX"].includes(p))
+        .length;
+}
+function countStarters(positions) {
+    return positions.filter((p) => p !== "BN").length;
+}
 async function upsertLeagues(leagues, client) {
     if (leagues.length === 0)
         return 0;
+    const cols = 26; // Total columns per league
     const upsertLeaguesQuery = `
-    INSERT INTO leagues (league_id, name, avatar, season, status, settings, scoring_settings, roster_positions, rosters)
-    VALUES ${leagues.map((_, i) => `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`)}    ON CONFLICT (league_id) DO UPDATE SET
+    INSERT INTO leagues (
+      league_id, name, avatar, season, status, settings, scoring_settings, roster_positions, rosters,
+      qb_count, rb_count, wr_count, te_count, flex_count, super_flex_count, rec_flex_count, wrrb_flex_count,
+      k_count, def_count, bn_count, dl_count, lb_count, db_count, idp_flex_count, starter_count, idp_count
+    )
+    VALUES ${leagues.map((_, i) => `(${Array.from({ length: cols }, (_, j) => `$${i * cols + j + 1}`).join(", ")})`)}
+    ON CONFLICT (league_id) DO UPDATE SET
       name = EXCLUDED.name,
       avatar = EXCLUDED.avatar,
       season = EXCLUDED.season,
@@ -311,19 +329,56 @@ async function upsertLeagues(leagues, client) {
       settings = EXCLUDED.settings,
       scoring_settings = EXCLUDED.scoring_settings,
       roster_positions = EXCLUDED.roster_positions,
-      rosters = EXCLUDED.rosters;
+      rosters = EXCLUDED.rosters,
+      qb_count = EXCLUDED.qb_count,
+      rb_count = EXCLUDED.rb_count,
+      wr_count = EXCLUDED.wr_count,
+      te_count = EXCLUDED.te_count,
+      flex_count = EXCLUDED.flex_count,
+      super_flex_count = EXCLUDED.super_flex_count,
+      rec_flex_count = EXCLUDED.rec_flex_count,
+      wrrb_flex_count = EXCLUDED.wrrb_flex_count,
+      k_count = EXCLUDED.k_count,
+      def_count = EXCLUDED.def_count,
+      bn_count = EXCLUDED.bn_count,
+      dl_count = EXCLUDED.dl_count,
+      lb_count = EXCLUDED.lb_count,
+      db_count = EXCLUDED.db_count,
+      idp_flex_count = EXCLUDED.idp_flex_count,
+      starter_count = EXCLUDED.starter_count,
+      idp_count = EXCLUDED.idp_count;
   `;
-    const values = leagues.flatMap((league) => [
-        league.league_id,
-        league.name,
-        league.avatar,
-        league.season,
-        league.status,
-        JSON.stringify(league.settings),
-        JSON.stringify(league.scoring_settings),
-        JSON.stringify(league.roster_positions),
-        JSON.stringify(league.rosters),
-    ]);
+    const values = leagues.flatMap((league) => {
+        const positions = league.roster_positions || [];
+        return [
+            league.league_id,
+            league.name,
+            league.avatar,
+            league.season,
+            league.status,
+            JSON.stringify(league.settings),
+            JSON.stringify(league.scoring_settings),
+            JSON.stringify(league.roster_positions),
+            JSON.stringify(league.rosters),
+            countSlot(positions, "QB"),
+            countSlot(positions, "RB"),
+            countSlot(positions, "WR"),
+            countSlot(positions, "TE"),
+            countSlot(positions, "FLEX"),
+            countSlot(positions, "SUPER_FLEX"),
+            countSlot(positions, "REC_FLEX"),
+            countSlot(positions, "WRRB_FLEX"),
+            countSlot(positions, "K"),
+            countSlot(positions, "DEF"),
+            countSlot(positions, "BN"),
+            countSlot(positions, "DL"),
+            countSlot(positions, "LB"),
+            countSlot(positions, "DB"),
+            countSlot(positions, "IDP_FLEX"),
+            countStarters(positions),
+            countIdp(positions),
+        ];
+    });
     const result = await client.query(upsertLeaguesQuery, values);
     return result.rows.filter((row) => row.is_insert).length;
 }

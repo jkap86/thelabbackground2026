@@ -112,6 +112,10 @@ export const updateKtcDataCurrent = async () => {
 
           currentValues.push(ktcPlayerDbUpdate);
 
+          if (ktc_map_dynasty[player.slug]?.sync) {
+            ktc_map_dynasty[player.slug].sync = new Date().getTime();
+          }
+
           if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
             ktc_unmatched_dynasty.links.push(player.slug);
           }
@@ -186,7 +190,7 @@ const SUFFIX_PATTERN = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i;
 const matchPlayer = (
   player: ktcPlayerObj,
   allplayers: { [player_id: string]: Allplayer },
-  ktc_map: { [key: string]: { sleeper_id: string; sync: number } }
+  ktc_map: { [key: string]: { sleeper_id: string; sync?: number } }
 ) => {
   if (ktc_map[player.slug])
     return { sleeperId: ktc_map[player.slug].sleeper_id };
@@ -238,7 +242,6 @@ const matchPlayer = (
 
     ktc_map[player.slug] = {
       sleeper_id: sleeperId,
-      sync: new Date().getTime(),
     };
 
     return { sleeperId };
