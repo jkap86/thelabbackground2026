@@ -115,6 +115,8 @@ parentPort?.on("message", async (message) => {
   try {
     const { leagueIdsQueue } = message;
 
+    console.log({ leagueIdsQueue: leagueIdsQueue.length });
+
     const state: { week: number; leg: number; season: string } = await (
       await axiosInstance.get("https://api.sleeper.app/v1/state/nfl")
     ).data;

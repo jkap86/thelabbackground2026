@@ -6,7 +6,7 @@ import { getAllplayers } from "./get-allplayers.js";
 import { KtcPlayerDbUpdate, ktcPlayerObj } from "../lib/types/ktc-types.js";
 import { Allplayer } from "../lib/types/common-types.js";
 
-const controlValue = new Date().getTime() - 48 * 60 * 60 * 1000;
+const controlValue = new Date().getTime() - 100 * 60 * 60 * 1000;
 
 const KTC_HISTORY_UPDATE_INCREMENT = 10;
 const MAX_INIT_RETRIES = 3;
