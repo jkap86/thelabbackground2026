@@ -245,5 +245,4 @@ const updatePlayerKtcHistory = async (link, sleeper_id) => {
     });
     const player_historical_values_array = Object.values(player_historical_values);
     await upsertKtcValues(player_historical_values_array);
-    return;
 };

@@ -135,8 +135,8 @@ function getLeagueDraftPicks(
 ) {
   const draftSeason =
     league.status === "pre_draft"
-      ? parseInt(league.season)
-      : parseInt(league.season) + 1;
+      ? parseInt(league.season, 10)
+      : parseInt(league.season, 10) + 1;
 
   const draftOrder: { [key: string]: number } | undefined = drafts.find(
     (draft) =>
@@ -145,7 +145,7 @@ function getLeagueDraftPicks(
   )?.draft_order;
 
   const startupCompletionTime =
-    league.previous_league_id && parseInt(league.previous_league_id) > 0
+    league.previous_league_id && parseInt(league.previous_league_id, 10) > 0
       ? 1
       : drafts.find(
           (draft) =>
@@ -164,7 +164,7 @@ function getLeagueDraftPicks(
       for (let j = 1; j <= league.settings.draft_rounds; j++) {
         const isTraded = tradedPicks.some(
           (tradedPick) =>
-            parseInt(tradedPick.season) === i &&
+            parseInt(tradedPick.season, 10) === i &&
             tradedPick.round === j &&
             tradedPick.roster_id === roster.roster_id
         );
@@ -186,7 +186,7 @@ function getLeagueDraftPicks(
   });
 
   tradedPicks
-    .filter((tradedPick) => parseInt(tradedPick.season) >= draftSeason)
+    .filter((tradedPick) => parseInt(tradedPick.season, 10) >= draftSeason)
     .forEach((tradedPick) => {
       if (!draftPicks[tradedPick.owner_id]) {
         draftPicks[tradedPick.owner_id] = [];
@@ -201,7 +201,7 @@ function getLeagueDraftPicks(
       );
 
       draftPicks[tradedPick.owner_id].push({
-        season: parseInt(tradedPick.season),
+        season: parseInt(tradedPick.season, 10),
         round: tradedPick.round,
         roster_id: tradedPick.roster_id,
         original_username: originalUser?.display_name || "Orphan",
@@ -215,7 +215,7 @@ function getLeagueDraftPicks(
 
       const index = draftPicks[tradedPick.previous_owner_id]?.findIndex(
         (draftPick) =>
-          draftPick.season === parseInt(tradedPick.season) &&
+          draftPick.season === parseInt(tradedPick.season, 10) &&
           draftPick.round === tradedPick.round &&
           draftPick.roster_id === tradedPick.roster_id
       );

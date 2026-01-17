@@ -2,8 +2,8 @@ export type KtcPlayerDbUpdate = {
   player_id: string;
   date: string;
   value: number;
-  overall_rank: number;
-  position_rank: number;
+  overall_rank: number | null;
+  position_rank: number | null;
 };
 
 export type ktcPlayerObj = {

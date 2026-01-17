@@ -69,11 +69,11 @@ export async function updateLeagues(toUpdate, db, week) {
 }
 function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
     const draftSeason = league.status === "pre_draft"
-        ? parseInt(league.season)
-        : parseInt(league.season) + 1;
+        ? parseInt(league.season, 10)
+        : parseInt(league.season, 10) + 1;
     const draftOrder = drafts.find((draft) => draft.season === draftSeason.toString() &&
         draft.settings.rounds === league.settings.draft_rounds)?.draft_order;
-    const startupCompletionTime = league.previous_league_id && parseInt(league.previous_league_id) > 0
+    const startupCompletionTime = league.previous_league_id && parseInt(league.previous_league_id, 10) > 0
         ? 1
         : drafts.find((draft) => draft.status === "complete" &&
             draft.settings.rounds > league.settings.draft_rounds)?.last_picked ?? undefined;
@@ -83,7 +83,7 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
         const user = users.find((user) => user.user_id === roster.owner_id);
         for (let i = draftSeason; i <= draftSeason + 2; i++) {
             for (let j = 1; j <= league.settings.draft_rounds; j++) {
-                const isTraded = tradedPicks.some((tradedPick) => parseInt(tradedPick.season) === i &&
+                const isTraded = tradedPicks.some((tradedPick) => parseInt(tradedPick.season, 10) === i &&
                     tradedPick.round === j &&
                     tradedPick.roster_id === roster.roster_id);
                 if (isTraded)
@@ -100,7 +100,7 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
         draftPicks[roster.roster_id] = teamDraftPicks;
     });
     tradedPicks
-        .filter((tradedPick) => parseInt(tradedPick.season) >= draftSeason)
+        .filter((tradedPick) => parseInt(tradedPick.season, 10) >= draftSeason)
         .forEach((tradedPick) => {
         if (!draftPicks[tradedPick.owner_id]) {
             draftPicks[tradedPick.owner_id] = [];
@@ -108,7 +108,7 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
         const originalRoster = rosters.find((roster) => roster.roster_id === tradedPick.roster_id);
         const originalUser = users.find((user) => user.user_id === originalRoster?.owner_id);
         draftPicks[tradedPick.owner_id].push({
-            season: parseInt(tradedPick.season),
+            season: parseInt(tradedPick.season, 10),
             round: tradedPick.round,
             roster_id: tradedPick.roster_id,
             original_username: originalUser?.display_name || "Orphan",
@@ -118,7 +118,7 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
                     : undefined
                 : undefined,
         });
-        const index = draftPicks[tradedPick.previous_owner_id]?.findIndex((draftPick) => draftPick.season === parseInt(tradedPick.season) &&
+        const index = draftPicks[tradedPick.previous_owner_id]?.findIndex((draftPick) => draftPick.season === parseInt(tradedPick.season, 10) &&
             draftPick.round === tradedPick.round &&
             draftPick.roster_id === tradedPick.roster_id);
         if (index !== undefined && index !== -1) {

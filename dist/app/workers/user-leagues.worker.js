@@ -33,7 +33,6 @@ const upsertUserIds = async (user_ids_updated) => {
         new Date(),
     ]);
     await pool.query(upsertUsersQuery, values);
-    return;
 };
 const updateUsers = async (league_ids_queue, season) => {
     if (league_ids_queue.length < INCREMENT_LEAGUES) {

@@ -42,18 +42,18 @@ const startWorker = async (app) => {
 const updateInterval = async (app) => {
     const used = process.memoryUsage();
     const rss = Math.round((used["rss"] / 1024 / 1024) * 100) / 100;
-    if (app.get("is-updating") !== false) {
-    }
-    else if (rss > 400) {
-        console.log("Mem use too high...");
-    }
-    else {
-        try {
-            startWorker(app);
+    if (app.get("is-updating") === false) {
+        if (rss > 400) {
+            console.log("Mem use too high...");
         }
-        catch (err) {
-            if (err instanceof Error)
-                console.log(err.message);
+        else {
+            try {
+                startWorker(app);
+            }
+            catch (err) {
+                if (err instanceof Error)
+                    console.log(err.message);
+            }
         }
     }
     setTimeout(() => updateInterval(app), 30 * 1000);
