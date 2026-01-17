@@ -15,7 +15,7 @@ const getUserIdsToUpdate = async () => {
       SELECT user_id 
       FROM users
       ORDER BY updated_at ASC 
-      LIMIT 25;
+      LIMIT 100;
     `;
 
   const users_to_update = await pool.query(getUserIdsQuery);
