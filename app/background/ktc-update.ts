@@ -3,7 +3,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { Express } from "express";
 
-const INTERVAL_MINUTES = 15;
+const INTERVAL_MINUTES = 30;
 
 let syncComplete = false;
 let workerRunning = false;
