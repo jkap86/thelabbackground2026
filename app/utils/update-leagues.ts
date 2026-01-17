@@ -1,6 +1,7 @@
-import { User, League, DraftPick, Roster } from "../lib/types/manager-types";
+import { User, League, DraftPick, Roster, Draft, DraftPickRecord } from "../lib/types/manager-types";
 import {
   SleeperDraft,
+  SleeperDraftDraftPick,
   SleeperDraftPick,
   SleeperLeague,
   SleeperRoster,
@@ -20,6 +21,10 @@ export async function updateLeagues(
   const usersToUpsert: User[] = [];
   const leaguesToUpsert: League[] = [];
   const tradesToUpsert: Trade[] = [];
+  const draftsToUpsert: Draft[] = [];
+  const draftPicksToUpsert: DraftPickRecord[] = [];
+
+  const currentSeason = process.env.SEASON || new Date().getFullYear().toString();
 
   const batchSize = 5;
 
@@ -54,6 +59,57 @@ export async function updateLeagues(
               drafts.data,
               tradedPicks.data
             );
+
+          // Process completed current-season drafts
+          const completedDrafts = (drafts.data as SleeperDraft[]).filter(
+            (d) => d.status === "complete" && d.season === currentSeason
+          );
+
+          if (completedDrafts.length > 0) {
+            const existingDraftIds = await getExistingCompletedDraftIds(
+              completedDrafts.map((d) => d.draft_id)
+            );
+
+            for (const draft of completedDrafts) {
+              if (!existingDraftIds.has(draft.draft_id)) {
+                // Fetch picks for this new completed draft
+                const picksResponse: { data: SleeperDraftDraftPick[] } =
+                  await axiosInstance.get(
+                    `https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`
+                  );
+
+                // Add draft to upsert
+                draftsToUpsert.push({
+                  draft_id: draft.draft_id,
+                  league_id: draft.league_id,
+                  season: draft.season,
+                  type: draft.type,
+                  status: draft.status,
+                  rounds: draft.settings.rounds,
+                  start_time: draft.start_time,
+                  last_picked: draft.last_picked,
+                  draft_order: draft.draft_order,
+                  slot_to_roster_id: draft.slot_to_roster_id || null,
+                  settings: draft.settings,
+                });
+
+                // Add picks to upsert
+                for (const pick of picksResponse.data) {
+                  draftPicksToUpsert.push({
+                    draft_id: pick.draft_id,
+                    player_id: pick.player_id,
+                    picked_by: pick.picked_by,
+                    roster_id: pick.roster_id,
+                    round: pick.round,
+                    draft_slot: pick.draft_slot,
+                    pick_no: pick.pick_no,
+                    amount: pick.amount ?? null,
+                    is_keeper: pick.is_keeper ?? false,
+                  });
+                }
+              }
+            }
+          }
 
           const rostersUsername = getRostersUsernames(
             rosters.data,
@@ -114,6 +170,8 @@ export async function updateLeagues(
     await upsertUsers(usersToUpsert, client);
     await upsertLeagues(leaguesToUpsert, client);
     await upsertTrades(tradesToUpsert, client);
+    await upsertDrafts(draftsToUpsert, client);
+    await upsertDraftPicks(draftPicksToUpsert, client);
 
     await client.query("COMMIT");
   } catch (err: unknown) {
@@ -460,4 +518,81 @@ async function upsertTrades(trades: Trade[], client: PoolClient) {
   ]);
 
   await client.query(upsertTradesQuery, values);
+}
+
+async function getExistingCompletedDraftIds(
+  draftIds: string[]
+): Promise<Set<string>> {
+  if (draftIds.length === 0) return new Set();
+
+  const query = `
+    SELECT draft_id FROM drafts
+    WHERE draft_id = ANY($1) AND status = 'complete';
+  `;
+
+  const result = await pool.query(query, [draftIds]);
+  return new Set(result.rows.map((row) => row.draft_id));
+}
+
+async function upsertDrafts(drafts: Draft[], client: PoolClient) {
+  if (drafts.length === 0) return;
+
+  const upsertDraftsQuery = `
+    INSERT INTO drafts (draft_id, league_id, season, type, status, rounds, start_time, last_picked, draft_order, slot_to_roster_id, settings)
+    VALUES ${drafts
+      .map(
+        (_, i) =>
+          `($${i * 11 + 1}, $${i * 11 + 2}, $${i * 11 + 3}, $${i * 11 + 4}, $${i * 11 + 5}, $${i * 11 + 6}, $${i * 11 + 7}, $${i * 11 + 8}, $${i * 11 + 9}, $${i * 11 + 10}, $${i * 11 + 11})`
+      )
+      .join(",")}
+    ON CONFLICT (draft_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      last_picked = EXCLUDED.last_picked,
+      updated_at = CURRENT_TIMESTAMP;
+  `;
+
+  const values = drafts.flatMap((draft) => [
+    draft.draft_id,
+    draft.league_id,
+    draft.season,
+    draft.type,
+    draft.status,
+    draft.rounds,
+    draft.start_time,
+    draft.last_picked,
+    JSON.stringify(draft.draft_order),
+    JSON.stringify(draft.slot_to_roster_id),
+    JSON.stringify(draft.settings),
+  ]);
+
+  await client.query(upsertDraftsQuery, values);
+}
+
+async function upsertDraftPicks(picks: DraftPickRecord[], client: PoolClient) {
+  if (picks.length === 0) return;
+
+  const upsertDraftPicksQuery = `
+    INSERT INTO draft_picks (draft_id, player_id, picked_by, roster_id, round, draft_slot, pick_no, amount, is_keeper)
+    VALUES ${picks
+      .map(
+        (_, i) =>
+          `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`
+      )
+      .join(",")}
+    ON CONFLICT (draft_id, pick_no) DO NOTHING;
+  `;
+
+  const values = picks.flatMap((pick) => [
+    pick.draft_id,
+    pick.player_id,
+    pick.picked_by,
+    pick.roster_id,
+    pick.round,
+    pick.draft_slot,
+    pick.pick_no,
+    pick.amount,
+    pick.is_keeper,
+  ]);
+
+  await client.query(upsertDraftPicksQuery, values);
 }

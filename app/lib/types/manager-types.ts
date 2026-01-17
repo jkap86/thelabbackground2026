@@ -81,3 +81,31 @@ export type PlayerShare = {
   }[];
   available: string[];
 };
+
+// Database draft record
+export type Draft = {
+  draft_id: string;
+  league_id: string;
+  season: string;
+  type: string;
+  status: string;
+  rounds: number;
+  start_time: number | null;
+  last_picked: number | null;
+  draft_order: { [user_id: string]: number };
+  slot_to_roster_id: { [slot: string]: number } | null;
+  settings: Record<string, unknown>;
+};
+
+// Database draft pick record
+export type DraftPickRecord = {
+  draft_id: string;
+  player_id: string;
+  picked_by: string;
+  roster_id: number;
+  round: number;
+  draft_slot: number;
+  pick_no: number;
+  amount: number | null;
+  is_keeper: boolean;
+};
