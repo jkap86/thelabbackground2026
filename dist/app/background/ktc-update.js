@@ -1,7 +1,7 @@
 import * as workerThreads from "worker_threads";
 import * as path from "path";
 import { fileURLToPath } from "url";
-const INTERVAL_MINUTES = 30;
+const INTERVAL_MINUTES = 15;
 let syncComplete = false;
 let workerRunning = false;
 const startWorker = async (app) => {
