@@ -95,11 +95,18 @@ export async function updateLeagues(toUpdate, db, week) {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        await upsertUsers(usersToUpsert, client);
-        await upsertLeagues(leaguesToUpsert, client);
-        await upsertTrades(tradesToUpsert, client);
-        await upsertDrafts(draftsToUpsert, client);
-        await upsertDraftPicks(draftPicksToUpsert, client);
+        const newUsersCount = await upsertUsers(usersToUpsert, client);
+        const newLeaguesCount = await upsertLeagues(leaguesToUpsert, client);
+        const newTradesCount = await upsertTrades(tradesToUpsert, client);
+        const newDraftsCount = await upsertDrafts(draftsToUpsert, client);
+        const newDraftPicksCount = await upsertDraftPicks(draftPicksToUpsert, client);
+        console.log({
+            newUsersCount,
+            newLeaguesCount,
+            newTradesCount,
+            newDraftsCount,
+            newDraftPicksCount,
+        });
         await client.query("COMMIT");
     }
     catch (err) {
@@ -268,7 +275,7 @@ async function getTrades(league, week, rosters, draftOrder, startupCompletionTim
 }
 async function upsertUsers(users, client) {
     if (users.length === 0)
-        return;
+        return 0;
     const upsertUsersQuery = `
     INSERT INTO users (user_id, username, avatar, type)
     VALUES ${users
@@ -288,11 +295,12 @@ async function upsertUsers(users, client) {
         user.avatar,
         user.type,
     ]);
-    await client.query(upsertUsersQuery, values);
+    const result = await client.query(upsertUsersQuery, values);
+    return result.rows.filter((row) => row.is_insert).length;
 }
 async function upsertLeagues(leagues, client) {
     if (leagues.length === 0)
-        return;
+        return 0;
     const upsertLeaguesQuery = `
     INSERT INTO leagues (league_id, name, avatar, season, status, settings, scoring_settings, roster_positions, rosters)
     VALUES ${leagues.map((_, i) => `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`)}    ON CONFLICT (league_id) DO UPDATE SET
@@ -316,11 +324,12 @@ async function upsertLeagues(leagues, client) {
         JSON.stringify(league.roster_positions),
         JSON.stringify(league.rosters),
     ]);
-    await client.query(upsertLeaguesQuery, values);
+    const result = await client.query(upsertLeaguesQuery, values);
+    return result.rows.filter((row) => row.is_insert).length;
 }
 async function upsertTrades(trades, client) {
     if (trades.length === 0)
-        return;
+        return 0;
     const upsertTradesQuery = `
     INSERT INTO trades (transaction_id, status_updated, league_id, adds, drops, draft_picks, rosters)
     VALUES ${trades.map((_, i) => `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`)}
@@ -336,7 +345,8 @@ async function upsertTrades(trades, client) {
         JSON.stringify(trade.draft_picks),
         JSON.stringify(trade.rosters),
     ]);
-    await client.query(upsertTradesQuery, values);
+    const result = await client.query(upsertTradesQuery, values);
+    return result.rows.filter((row) => row.is_insert).length;
 }
 async function getExistingCompletedDraftIds(draftIds) {
     if (draftIds.length === 0)
@@ -350,7 +360,7 @@ async function getExistingCompletedDraftIds(draftIds) {
 }
 async function upsertDrafts(drafts, client) {
     if (drafts.length === 0)
-        return;
+        return 0;
     const upsertDraftsQuery = `
     INSERT INTO drafts (draft_id, league_id, season, type, status, rounds, start_time, last_picked, draft_order, slot_to_roster_id, settings)
     VALUES ${drafts
@@ -374,11 +384,12 @@ async function upsertDrafts(drafts, client) {
         JSON.stringify(draft.slot_to_roster_id),
         JSON.stringify(draft.settings),
     ]);
-    await client.query(upsertDraftsQuery, values);
+    const result = await client.query(upsertDraftsQuery, values);
+    return result.rows.filter((row) => row.is_insert).length;
 }
 async function upsertDraftPicks(picks, client) {
     if (picks.length === 0)
-        return;
+        return 0;
     const upsertDraftPicksQuery = `
     INSERT INTO draft_picks (draft_id, player_id, picked_by, roster_id, round, draft_slot, pick_no, amount, is_keeper)
     VALUES ${picks
@@ -397,5 +408,6 @@ async function upsertDraftPicks(picks, client) {
         pick.amount,
         pick.is_keeper,
     ]);
-    await client.query(upsertDraftPicksQuery, values);
+    const result = await client.query(upsertDraftPicksQuery, values);
+    return result.rows.filter((row) => row.is_insert).length;
 }
