@@ -9,7 +9,8 @@ const startWorker = async (app) => {
     const leagueIdsQueue = app.get("league-ids-queue") ?? [];
     worker.postMessage({ leagueIdsQueue });
     worker.once("error", (err) => {
-        console.log(err);
+        console.error("Worker error:", err);
+        app.set("is-updating", false);
     });
     worker.once("message", (message) => {
         console.log({ queue: message.length });

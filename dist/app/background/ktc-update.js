@@ -3,7 +3,13 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 const INTERVAL_MINUTES = 30;
 let syncComplete = false;
+let workerRunning = false;
 const startWorker = async (app) => {
+    if (workerRunning) {
+        console.log("KTC worker already running, skipping...");
+        return;
+    }
+    workerRunning = true;
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const worker = new workerThreads.Worker(path.resolve(__dirname, "../workers/ktc-update.worker.js"), {
@@ -12,7 +18,8 @@ const startWorker = async (app) => {
         },
     });
     worker.once("error", (err) => {
-        console.log(err.message);
+        console.error("KTC worker error:", err);
+        workerRunning = false;
     });
     worker.on("message", (message) => {
         syncComplete = message.syncComplete;
@@ -21,6 +28,7 @@ const startWorker = async (app) => {
         }
     });
     worker.once("exit", (code) => {
+        workerRunning = false;
         if (code !== 0) {
             console.error(new Error(`Worker stopped with exit code ${code}`));
             startWorker(app);

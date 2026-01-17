@@ -9,7 +9,7 @@ const axiosInstance = axios.create({
         keepAlive: true,
         maxSockets: 10,
     }),
-    timeout: 10000,
+    timeout: 15000,
 });
 axiosRetry(axiosInstance, {
     retries: 5,

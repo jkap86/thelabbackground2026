@@ -6,8 +6,15 @@ import { Express } from "express";
 const INTERVAL_MINUTES = 30;
 
 let syncComplete = false;
+let workerRunning = false;
 
 const startWorker = async (app: Express) => {
+  if (workerRunning) {
+    console.log("KTC worker already running, skipping...");
+    return;
+  }
+  workerRunning = true;
+
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
@@ -21,7 +28,8 @@ const startWorker = async (app: Express) => {
   );
 
   worker.once("error", (err) => {
-    console.log(err.message);
+    console.error("KTC worker error:", err);
+    workerRunning = false;
   });
 
   worker.on("message", (message) => {
@@ -32,6 +40,7 @@ const startWorker = async (app: Express) => {
   });
 
   worker.once("exit", (code) => {
+    workerRunning = false;
     if (code !== 0) {
       console.error(new Error(`Worker stopped with exit code ${code}`));
 

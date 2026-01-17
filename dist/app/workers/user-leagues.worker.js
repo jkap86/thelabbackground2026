@@ -2,12 +2,14 @@ import { parentPort } from "worker_threads";
 import pool from "../lib/pool.js";
 import axiosInstance from "../lib/axios-instance.js";
 import { updateLeagues } from "../utils/update-leagues.js";
+if (!process.env.SEASON) {
+    throw new Error("SEASON environment variable is required");
+}
 const INCREMENT_LEAGUES = 250;
 const getUserIdsToUpdate = async () => {
     const getUserIdsQuery = `
       SELECT user_id 
-      FROM users 
-      WHERE type IN ('S', 'LM')
+      FROM users
       ORDER BY updated_at ASC 
       LIMIT 25;
     `;
@@ -60,7 +62,9 @@ const updateUsers = async (league_ids_queue, season) => {
                     league_ids_to_add.push(...newLeague_ids);
                     user_ids_updated.push(user_id);
                 }
-                catch { }
+                catch (err) {
+                    console.error(`Failed to fetch leagues for user ${user_id}:`, err);
+                }
             }));
             await upsertUserIds(user_ids_updated);
         }
@@ -73,30 +77,38 @@ const updateUsers = async (league_ids_queue, season) => {
     }
 };
 parentPort?.on("message", async (message) => {
-    const { leagueIdsQueue } = message;
-    const state = await (await axiosInstance.get("https://api.sleeper.app/v1/state/nfl")).data;
-    const week = process.env.SEASON === state.season
-        ? Math.max(Math.min(state.week, state.leg), 1)
-        : 1;
-    const result = await updateUsers(leagueIdsQueue, process.env.SEASON);
-    let outOfDateLeagueIds;
-    if (result.league_ids_queue_updated.length < INCREMENT_LEAGUES) {
-        const outOfDateLeaguesQuery = `
-      SELECT league_id
-      FROM leagues
-      ORDER BY updated_at ASC
-      LIMIT $1;
-    `;
-        const outOfDateLeagues = await pool.query(outOfDateLeaguesQuery, [
-            INCREMENT_LEAGUES - result.league_ids_queue_updated.length,
-        ]);
-        outOfDateLeagueIds = outOfDateLeagues.rows.map((l) => l.league_id);
-        console.log({ outOfDateLeagueIds: outOfDateLeagueIds.length });
+    try {
+        const { leagueIdsQueue } = message;
+        const state = await (await axiosInstance.get("https://api.sleeper.app/v1/state/nfl")).data;
+        const week = process.env.SEASON === state.season
+            ? Math.max(Math.min(state.week, state.leg), 1)
+            : 1;
+        const result = await updateUsers(leagueIdsQueue, process.env.SEASON);
+        let outOfDateLeagueIds;
+        if (result.league_ids_queue_updated.length < INCREMENT_LEAGUES) {
+            const outOfDateLeaguesQuery = `
+        SELECT league_id
+        FROM leagues
+        ORDER BY updated_at ASC
+        LIMIT $1;
+      `;
+            const outOfDateLeagues = await pool.query(outOfDateLeaguesQuery, [
+                INCREMENT_LEAGUES - result.league_ids_queue_updated.length,
+            ]);
+            outOfDateLeagueIds = outOfDateLeagues.rows.map((l) => l.league_id);
+            console.log({ outOfDateLeagueIds: outOfDateLeagueIds.length });
+        }
+        const updated_league_ids = await updateLeagues([
+            ...result.league_ids_queue_updated.slice(0, INCREMENT_LEAGUES),
+            ...(outOfDateLeagueIds || []),
+        ], outOfDateLeagueIds || [], week);
+        parentPort?.postMessage(result.league_ids_queue_updated.filter((league_id) => !updated_league_ids.some((l) => l.league_id === league_id)));
     }
-    const updated_league_ids = await updateLeagues([
-        ...result.league_ids_queue_updated.slice(0, INCREMENT_LEAGUES),
-        ...(outOfDateLeagueIds || []),
-    ], outOfDateLeagueIds || [], week);
-    parentPort?.postMessage(result.league_ids_queue_updated.filter((league_id) => !updated_league_ids.some((l) => l.league_id === league_id)));
-    parentPort?.close();
+    catch (err) {
+        console.error("Worker fatal error:", err);
+        parentPort?.postMessage([]);
+    }
+    finally {
+        parentPort?.close();
+    }
 });

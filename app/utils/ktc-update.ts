@@ -6,18 +6,22 @@ import { getAllplayers } from "./get-allplayers.js";
 import { KtcPlayerDbUpdate, ktcPlayerObj } from "../lib/types/ktc-types.js";
 import { Allplayer } from "../lib/types/common-types.js";
 
-const controlValue = new Date().getTime() - 24 * 60 * 60 * 1000;
+const controlValue = new Date().getTime() - 12 * 60 * 60 * 1000;
 
 const KTC_HISTORY_UPDATE_INCREMENT = 10;
+const MAX_INIT_RETRIES = 3;
 
-export const updateKtcDataHistory = async () => {
+export const updateKtcDataHistory = async (initRetryCount = 0) => {
   const { linksToUpdate, ktc_map_dynasty } = await getKtcLinksToUpdate();
 
   if (Object.keys(ktc_map_dynasty).length === 0) {
+    if (initRetryCount >= MAX_INIT_RETRIES) {
+      console.error("Failed to initialize KTC map after max retries");
+      parentPort?.postMessage({ syncComplete: false, error: "init_failed" });
+      return;
+    }
     await updateKtcDataCurrent();
-
-    await updateKtcDataHistory();
-
+    await updateKtcDataHistory(initRetryCount + 1);
     return;
   }
 
@@ -75,7 +79,13 @@ export const updateKtcDataCurrent = async () => {
 
     if (match && match[1]) {
       const playersArrayJson = match[1];
-      const playersArray: ktcPlayerObj[] = JSON.parse(playersArrayJson);
+      let playersArray: ktcPlayerObj[];
+      try {
+        playersArray = JSON.parse(playersArrayJson);
+      } catch (err) {
+        console.error("Failed to parse KTC players array JSON:", err);
+        return;
+      }
 
       playersArray.forEach((player) => {
         let sleeperId = matchPlayer(
@@ -85,11 +95,12 @@ export const updateKtcDataCurrent = async () => {
         ).sleeperId;
 
         if (sleeperId) {
-          const overall_rank = player.superflexValues.tepp.rank;
+          const overall_rank = player.superflexValues?.tepp?.rank ?? null;
 
-          const position_rank = player.superflexValues.tepp.positionalRank;
+          const position_rank =
+            player.superflexValues?.tepp?.positionalRank ?? null;
 
-          const value = player.superflexValues.tepp.value;
+          const value = player.superflexValues?.tepp?.value ?? 0;
 
           const ktcPlayerDbUpdate: KtcPlayerDbUpdate = {
             player_id: sleeperId,
@@ -100,8 +111,12 @@ export const updateKtcDataCurrent = async () => {
           };
 
           currentValues.push(ktcPlayerDbUpdate);
-        } else if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
-          ktc_unmatched_dynasty.links.push(player.slug);
+
+          if (ktc_map_dynasty[player.slug].sync) {
+            ktc_map_dynasty[player.slug].sync = new Date().getTime();
+          } else if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
+            ktc_unmatched_dynasty.links.push(player.slug);
+          }
         }
       });
     }
@@ -162,6 +177,14 @@ const getKtcMapAndUnmatched = async () => {
   return { ktc_map_dynasty, ktc_unmatched_dynasty };
 };
 
+// Player name aliases for matching KTC names to Sleeper names
+const NAME_ALIASES: Record<string, string> = {
+  "marquise brown": "hollywood brown",
+};
+
+// Pattern to match name suffixes (only at end of string)
+const SUFFIX_PATTERN = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i;
+
 const matchPlayer = (
   player: ktcPlayerObj,
   allplayers: { [player_id: string]: Allplayer },
@@ -175,12 +198,18 @@ const matchPlayer = (
   }
 
   const getMatchName = (name: string) => {
-    return name
-      .replace("Marquise Brown", "Hollywood Brown")
-      .replace("Jr", "")
-      .replace("III", "")
-      .toLowerCase()
-      .replace(/[^a-z]/g, "");
+    let normalized = name.toLowerCase();
+
+    // Apply known aliases
+    for (const [from, to] of Object.entries(NAME_ALIASES)) {
+      normalized = normalized.replace(from, to);
+    }
+
+    // Remove suffixes (only at end of string)
+    normalized = normalized.replace(SUFFIX_PATTERN, "");
+
+    // Remove non-alpha characters
+    return normalized.replace(/[^a-z]/g, "");
   };
 
   let matches = Object.keys(allplayers).filter((sleeper_id) => {
@@ -311,19 +340,27 @@ const updatePlayerKtcHistory = async (link: string, sleeper_id: string) => {
     const match = content?.match(/var playerSuperflex\s*=\s*(\{[\s\S]*?\});/);
 
     if (match && match[1]) {
-      const playerObj = JSON.parse(match[1]);
-      const position = playerObj.adjacentPositionalPlayers[0]?.position;
+      let playerObj;
+      try {
+        playerObj = JSON.parse(match[1]);
+      } catch (err) {
+        console.error("Failed to parse KTC player history JSON:", err);
+        return;
+      }
+      const position = playerObj.adjacentPositionalPlayers?.[0]?.position;
       const historicalValues =
-        position === "TE" ? playerObj.tepp.history : playerObj.overallValue;
+        position === "TE" ? playerObj.tepp?.history : playerObj.overallValue;
+
+      if (!historicalValues) return;
 
       historicalValues.forEach((obj: { d: string; v: number }) => {
         const overall_rank =
-          playerObj.overallRankHistory.find(
+          playerObj.overallRankHistory?.find(
             (or: { d: string; v: number }) => or.d === obj.d
           )?.v ?? null;
 
         const position_rank =
-          playerObj.positionalRankHistory.find(
+          playerObj.positionalRankHistory?.find(
             (or: { d: string; v: number }) => or.d === obj.d
           )?.v ?? null;
 

@@ -18,7 +18,8 @@ const startWorker = async (app: Express) => {
   worker.postMessage({ leagueIdsQueue });
 
   worker.once("error", (err) => {
-    console.log(err);
+    console.error("Worker error:", err);
+    app.set("is-updating", false);
   });
 
   worker.once("message", (message) => {

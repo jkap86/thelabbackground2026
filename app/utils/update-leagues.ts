@@ -10,6 +10,7 @@ import {
 import { Trade } from "../lib/types/trades-types";
 import axiosInstance from "../lib/axios-instance.js";
 import pool from "../lib/pool.js";
+import { PoolClient } from "pg";
 
 export async function updateLeagues(
   toUpdate: string[],
@@ -106,22 +107,20 @@ export async function updateLeagues(
     );
   }
 
+  const client = await pool.connect();
   try {
-    await pool.query("BEGIN");
+    await client.query("BEGIN");
 
-    await upsertUsers(usersToUpsert);
-    await upsertLeagues(leaguesToUpsert);
-    await upsertTrades(tradesToUpsert);
+    await upsertUsers(usersToUpsert, client);
+    await upsertLeagues(leaguesToUpsert, client);
+    await upsertTrades(tradesToUpsert, client);
 
-    await pool.query("COMMIT");
+    await client.query("COMMIT");
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.log(err.message);
-    } else {
-      console.log("An unknown error occurred.");
-    }
-
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
+    console.error("Failed to upsert leagues data:", err);
+  } finally {
+    client.release();
   }
 
   return leaguesToUpsert;
@@ -221,7 +220,7 @@ function getLeagueDraftPicks(
           draftPick.roster_id === tradedPick.roster_id
       );
 
-      if (index) {
+      if (index !== undefined && index !== -1) {
         draftPicks[tradedPick.previous_owner_id].splice(index, 1);
       }
     });
@@ -370,7 +369,7 @@ async function getTrades(
     });
 }
 
-async function upsertUsers(users: User[]) {
+async function upsertUsers(users: User[], client: PoolClient) {
   if (users.length === 0) return;
 
   const upsertUsersQuery = `
@@ -396,15 +395,13 @@ async function upsertUsers(users: User[]) {
     user.type,
   ]);
 
-  await pool.query(upsertUsersQuery, values);
-
-  return;
+  await client.query(upsertUsersQuery, values);
 }
 
-async function upsertLeagues(leagues: League[]) {
+async function upsertLeagues(leagues: League[], client: PoolClient) {
   if (leagues.length === 0) return;
 
-  const upserLeaguesQuery = `
+  const upsertLeaguesQuery = `
     INSERT INTO leagues (league_id, name, avatar, season, status, settings, scoring_settings, roster_positions, rosters)
     VALUES ${leagues.map(
       (_, i) =>
@@ -434,12 +431,10 @@ async function upsertLeagues(leagues: League[]) {
     JSON.stringify(league.rosters),
   ]);
 
-  await pool.query(upserLeaguesQuery, values);
-
-  return;
+  await client.query(upsertLeaguesQuery, values);
 }
 
-async function upsertTrades(trades: Trade[]) {
+async function upsertTrades(trades: Trade[], client: PoolClient) {
   if (trades.length === 0) return;
 
   const upsertTradesQuery = `
@@ -463,14 +458,6 @@ async function upsertTrades(trades: Trade[]) {
     JSON.stringify(trade.draft_picks),
     JSON.stringify(trade.rosters),
   ]);
-  try {
-    await pool.query(upsertTradesQuery, values);
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.log(err.message);
-    } else {
-      console.log("An unknown error occurred.");
-    }
-    return;
-  }
+
+  await client.query(upsertTradesQuery, values);
 }

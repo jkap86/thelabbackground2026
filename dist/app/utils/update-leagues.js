@@ -50,21 +50,20 @@ export async function updateLeagues(toUpdate, db, week) {
             }
         }));
     }
+    const client = await pool.connect();
     try {
-        await pool.query("BEGIN");
-        await upsertUsers(usersToUpsert);
-        await upsertLeagues(leaguesToUpsert);
-        await upsertTrades(tradesToUpsert);
-        await pool.query("COMMIT");
+        await client.query("BEGIN");
+        await upsertUsers(usersToUpsert, client);
+        await upsertLeagues(leaguesToUpsert, client);
+        await upsertTrades(tradesToUpsert, client);
+        await client.query("COMMIT");
     }
     catch (err) {
-        if (err instanceof Error) {
-            console.log(err.message);
-        }
-        else {
-            console.log("An unknown error occurred.");
-        }
-        await pool.query("ROLLBACK");
+        await client.query("ROLLBACK");
+        console.error("Failed to upsert leagues data:", err);
+    }
+    finally {
+        client.release();
     }
     return leaguesToUpsert;
 }
@@ -84,16 +83,11 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
         const user = users.find((user) => user.user_id === roster.owner_id);
         for (let i = draftSeason; i <= draftSeason + 2; i++) {
             for (let j = 1; j <= league.settings.draft_rounds; j++) {
-                /*
-                const isTraded = tradedPicks.some(
-                  (tradedPick) =>
-                    parseInt(tradedPick.season) === i &&
+                const isTraded = tradedPicks.some((tradedPick) => parseInt(tradedPick.season) === i &&
                     tradedPick.round === j &&
-                    tradedPick.roster_id === roster.roster_id
-                );
-        
-                if (isTraded) continue;
-                */
+                    tradedPick.roster_id === roster.roster_id);
+                if (isTraded)
+                    continue;
                 teamDraftPicks.push({
                     season: i,
                     round: j,
@@ -108,6 +102,9 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
     tradedPicks
         .filter((tradedPick) => parseInt(tradedPick.season) >= draftSeason)
         .forEach((tradedPick) => {
+        if (!draftPicks[tradedPick.owner_id]) {
+            draftPicks[tradedPick.owner_id] = [];
+        }
         const originalRoster = rosters.find((roster) => roster.roster_id === tradedPick.roster_id);
         const originalUser = users.find((user) => user.user_id === originalRoster?.owner_id);
         draftPicks[tradedPick.owner_id].push({
@@ -124,7 +121,7 @@ function getLeagueDraftPicks(league, rosters, users, drafts, tradedPicks) {
         const index = draftPicks[tradedPick.previous_owner_id]?.findIndex((draftPick) => draftPick.season === parseInt(tradedPick.season) &&
             draftPick.round === tradedPick.round &&
             draftPick.roster_id === tradedPick.roster_id);
-        if (index) {
+        if (index !== undefined && index !== -1) {
             draftPicks[tradedPick.previous_owner_id].splice(index, 1);
         }
     });
@@ -225,7 +222,7 @@ async function getTrades(league, week, rosters, draftOrder, startupCompletionTim
         };
     });
 }
-async function upsertUsers(users) {
+async function upsertUsers(users, client) {
     if (users.length === 0)
         return;
     const upsertUsersQuery = `
@@ -247,13 +244,12 @@ async function upsertUsers(users) {
         user.avatar,
         user.type,
     ]);
-    await pool.query(upsertUsersQuery, values);
-    return;
+    await client.query(upsertUsersQuery, values);
 }
-async function upsertLeagues(leagues) {
+async function upsertLeagues(leagues, client) {
     if (leagues.length === 0)
         return;
-    const upserLeaguesQuery = `
+    const upsertLeaguesQuery = `
     INSERT INTO leagues (league_id, name, avatar, season, status, settings, scoring_settings, roster_positions, rosters)
     VALUES ${leagues.map((_, i) => `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`)}    ON CONFLICT (league_id) DO UPDATE SET
       name = EXCLUDED.name,
@@ -276,10 +272,9 @@ async function upsertLeagues(leagues) {
         JSON.stringify(league.roster_positions),
         JSON.stringify(league.rosters),
     ]);
-    await pool.query(upserLeaguesQuery, values);
-    return;
+    await client.query(upsertLeaguesQuery, values);
 }
-async function upsertTrades(trades) {
+async function upsertTrades(trades, client) {
     if (trades.length === 0)
         return;
     const upsertTradesQuery = `
@@ -297,16 +292,5 @@ async function upsertTrades(trades) {
         JSON.stringify(trade.draft_picks),
         JSON.stringify(trade.rosters),
     ]);
-    try {
-        await pool.query(upsertTradesQuery, values);
-    }
-    catch (err) {
-        if (err instanceof Error) {
-            console.log(err.message);
-        }
-        else {
-            console.log("An unknown error occurred.");
-        }
-        return;
-    }
+    await client.query(upsertTradesQuery, values);
 }
