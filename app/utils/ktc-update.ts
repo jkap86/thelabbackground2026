@@ -112,7 +112,7 @@ export const updateKtcDataCurrent = async () => {
 
           currentValues.push(ktcPlayerDbUpdate);
 
-          if (ktc_map_dynasty[player.slug].sync) {
+          if (ktc_map_dynasty[player.slug]?.sync) {
             ktc_map_dynasty[player.slug].sync = new Date().getTime();
           } else if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
             ktc_unmatched_dynasty.links.push(player.slug);

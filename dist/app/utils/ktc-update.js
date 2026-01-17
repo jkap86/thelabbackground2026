@@ -70,7 +70,7 @@ export const updateKtcDataCurrent = async () => {
                         position_rank,
                     };
                     currentValues.push(ktcPlayerDbUpdate);
-                    if (ktc_map_dynasty[player.slug].sync) {
+                    if (ktc_map_dynasty[player.slug]?.sync) {
                         ktc_map_dynasty[player.slug].sync = new Date().getTime();
                     }
                     else if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
