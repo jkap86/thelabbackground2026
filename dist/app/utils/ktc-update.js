@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import pool from "../lib/pool.js";
 import { parentPort } from "worker_threads";
 import { getAllplayers } from "./get-allplayers.js";
-const controlValue = new Date().getTime() - 12 * 60 * 60 * 1000;
+const controlValue = new Date().getTime() - 100 * 60 * 60 * 1000;
 const KTC_HISTORY_UPDATE_INCREMENT = 10;
 const MAX_INIT_RETRIES = 3;
 export const updateKtcDataHistory = async (initRetryCount = 0) => {

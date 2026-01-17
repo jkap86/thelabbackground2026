@@ -6,7 +6,7 @@ import { getAllplayers } from "./get-allplayers.js";
 import { KtcPlayerDbUpdate, ktcPlayerObj } from "../lib/types/ktc-types.js";
 import { Allplayer } from "../lib/types/common-types.js";
 
-const controlValue = new Date().getTime() - 100 * 60 * 60 * 1000;
+const controlValue = new Date().getTime() - 12 * 60 * 60 * 1000;
 
 const KTC_HISTORY_UPDATE_INCREMENT = 10;
 const MAX_INIT_RETRIES = 3;
@@ -114,7 +114,8 @@ export const updateKtcDataCurrent = async () => {
 
           if (ktc_map_dynasty[player.slug]?.sync) {
             ktc_map_dynasty[player.slug].sync = new Date().getTime();
-          } else if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
+          }
+          if (!ktc_unmatched_dynasty.links.includes(player.slug)) {
             ktc_unmatched_dynasty.links.push(player.slug);
           }
         }
@@ -238,7 +239,10 @@ const matchPlayer = (
   if (matches.length === 1) {
     const sleeperId = matches[0];
 
-    ktc_map[player.slug] = { sleeper_id: sleeperId, sync: 0 };
+    ktc_map[player.slug] = {
+      sleeper_id: sleeperId,
+      sync: new Date().getTime(),
+    };
 
     return { sleeperId };
   } else {

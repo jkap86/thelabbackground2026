@@ -78,6 +78,7 @@ const updateUsers = async (league_ids_queue, season) => {
 parentPort?.on("message", async (message) => {
     try {
         const { leagueIdsQueue } = message;
+        console.log({ leagueIdsQueue: leagueIdsQueue.length });
         const state = await (await axiosInstance.get("https://api.sleeper.app/v1/state/nfl")).data;
         const week = process.env.SEASON === state.season
             ? Math.max(Math.min(state.week, state.leg), 1)
