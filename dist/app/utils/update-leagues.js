@@ -202,16 +202,72 @@ function getRostersUsernames(rosters, users, draftPicks) {
     });
     return rostersUsernames;
 }
+function computeHistoricalRoster(roster, subsequentTransactions) {
+    let players = [...roster.players];
+    let draftPicks = [...roster.draftPicks];
+    // Process transactions in reverse chronological order (most recent first)
+    for (const txn of subsequentTransactions) {
+        // Reverse adds: remove players that were added after this trade
+        if (txn.adds) {
+            for (const [playerId, rosterIdTxn] of Object.entries(txn.adds)) {
+                if (rosterIdTxn === roster.roster_id) {
+                    players = players.filter((p) => p !== playerId);
+                }
+            }
+        }
+        // Reverse drops: add back players that were dropped after this trade
+        if (txn.drops) {
+            for (const [playerId, rosterIdTxn] of Object.entries(txn.drops)) {
+                if (rosterIdTxn === roster.roster_id && !players.includes(playerId)) {
+                    players.push(playerId);
+                }
+            }
+        }
+        // Reverse draft pick trades
+        for (const dp of txn.draft_picks || []) {
+            if (dp.owner_id === roster.roster_id) {
+                // This roster received a pick after - remove it
+                draftPicks = draftPicks.filter((p) => !(p.season === parseInt(dp.season, 10) &&
+                    p.round === dp.round &&
+                    p.roster_id === dp.roster_id));
+            }
+            if (dp.previous_owner_id === roster.roster_id) {
+                // This roster gave away a pick after - add it back
+                draftPicks.push({
+                    season: parseInt(dp.season, 10),
+                    round: dp.round,
+                    roster_id: dp.roster_id,
+                    original_username: roster.username,
+                    order: undefined,
+                });
+            }
+        }
+    }
+    return {
+        ...roster,
+        players,
+        draftPicks,
+    };
+}
 async function getTrades(league, week, rosters, draftOrder, startupCompletionTime) {
     if (league.settings.disable_trades)
         return [];
     const transactions = await axiosInstance.get(`https://api.sleeper.app/v1/league/${league.league_id}/transactions/${week}`);
-    return transactions.data
-        .filter((t) => t.type === "trade" &&
-        t.status === "complete" &&
+    // Get ALL completed transactions sorted by time (ascending)
+    const allTransactions = transactions.data
+        .filter((t) => t.status === "complete" &&
         startupCompletionTime &&
         t.status_updated > startupCompletionTime)
-        .map((t) => {
+        .sort((a, b) => a.status_updated - b.status_updated);
+    // Filter for trades only
+    const trades = allTransactions.filter((t) => t.type === "trade");
+    return trades.map((t) => {
+        // Find all transactions that happened AFTER this trade (reverse chronological)
+        const subsequentTransactions = allTransactions
+            .filter((txn) => txn.status_updated > t.status_updated)
+            .sort((a, b) => b.status_updated - a.status_updated);
+        // Compute historical roster for each roster
+        const historicalRosters = rosters.map((roster) => computeHistoricalRoster(roster, subsequentTransactions));
         const adds = {};
         const drops = {};
         const draftPicks = t.draft_picks.map((draftPick) => {
@@ -259,7 +315,7 @@ async function getTrades(league, week, rosters, draftOrder, startupCompletionTim
             adds,
             drops,
             draft_picks: draftPicks,
-            rosters: rosters.map((roster) => ({
+            rosters: historicalRosters.map((roster) => ({
                 roster_id: roster.roster_id,
                 user_id: roster.user_id,
                 username: roster.username,
@@ -389,7 +445,8 @@ async function upsertTrades(trades, client) {
     INSERT INTO trades (transaction_id, status_updated, league_id, adds, drops, draft_picks, rosters)
     VALUES ${trades.map((_, i) => `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`)}
     ON CONFLICT (transaction_id) DO UPDATE SET
-      draft_picks = EXCLUDED.draft_picks;
+      draft_picks = EXCLUDED.draft_picks,
+      rosters = EXCLUDED.rosters;
   `;
     const values = trades.flatMap((trade) => [
         trade.transaction_id,
