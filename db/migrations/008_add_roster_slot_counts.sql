@@ -39,7 +39,8 @@ UPDATE leagues SET
   idp_flex_count = (SELECT COUNT(*) FROM jsonb_array_elements_text(roster_positions) elem WHERE elem = 'IDP_FLEX'),
   starter_count = (SELECT COUNT(*) FROM jsonb_array_elements_text(roster_positions) elem WHERE elem != 'BN'),
   idp_count = (SELECT COUNT(*) FROM jsonb_array_elements_text(roster_positions) elem WHERE elem IN ('DL', 'LB', 'DB', 'IDP_FLEX'))
-WHERE roster_positions IS NOT NULL;
+WHERE roster_positions IS NOT NULL
+  AND qb_count = 0;
 
 -- Add indexes for common ADP query filters
 CREATE INDEX IF NOT EXISTS idx_leagues_qb_count ON leagues(qb_count);
