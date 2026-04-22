@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const app = express();
 app.use(express.json());
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     const { default: userLeaguesUpdate } = await import("./app/background/user-leagues-update.js");

@@ -1,3 +1,4 @@
+import axios from "axios";
 import axiosInstance from "../lib/axios-instance.js";
 import pool from "../lib/pool.js";
 export async function updateLeagues(toUpdate, db, week) {
@@ -6,6 +7,7 @@ export async function updateLeagues(toUpdate, db, week) {
     const tradesToUpsert = [];
     const draftsToUpsert = [];
     const draftPicksToUpsert = [];
+    const leaguesToDelete = [];
     const currentSeason = process.env.SEASON || new Date().getFullYear().toString();
     const batchSize = 5;
     for (let i = 0; i < toUpdate.length; i += batchSize) {
@@ -85,7 +87,11 @@ export async function updateLeagues(toUpdate, db, week) {
                 });
             }
             catch (err) {
-                if (err instanceof Error) {
+                if (axios.isAxiosError(err) && err.response?.status === 404) {
+                    console.log(`League ${league_id} returned 404, marking for deletion.`);
+                    leaguesToDelete.push(league_id);
+                }
+                else if (err instanceof Error) {
                     console.log(err.message);
                 }
                 else {
@@ -102,12 +108,18 @@ export async function updateLeagues(toUpdate, db, week) {
         const newTradesCount = await upsertTrades(tradesToUpsert, client);
         const newDraftsCount = await upsertDrafts(draftsToUpsert, client);
         const newDraftPicksCount = await upsertDraftPicks(draftPicksToUpsert, client);
+        let deletedLeaguesCount = 0;
+        if (leaguesToDelete.length > 0) {
+            const result = await client.query(`DELETE FROM leagues WHERE league_id = ANY($1)`, [leaguesToDelete]);
+            deletedLeaguesCount = result.rowCount ?? 0;
+        }
         console.log({
             newUsersCount,
             newLeaguesCount,
             newTradesCount,
             newDraftsCount,
             newDraftPicksCount,
+            deletedLeaguesCount,
         });
         await client.query("COMMIT");
     }

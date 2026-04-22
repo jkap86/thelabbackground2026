@@ -1,3 +1,4 @@
+import axios from "axios";
 import axiosInstance from "../lib/axios-instance.js";
 import * as cheerio from "cheerio";
 import pool from "../lib/pool.js";
@@ -25,7 +26,13 @@ export const updateKtcDataHistory = async (initRetryCount = 0) => {
             ktc_map_dynasty[link].sync = new Date().getTime();
         }
         catch (error) {
-            console.error(`Error updating KTC history for player link: ${link}, sleeper ID: ${sleeperId}`, error);
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+                console.log(`KTC player 404, removing from map: ${link} (sleeper ID: ${sleeperId})`);
+                delete ktc_map_dynasty[link];
+            }
+            else {
+                console.error(`Error updating KTC history for player link: ${link}, sleeper ID: ${sleeperId}`, error);
+            }
         }
     }
     await upsertIntoCommon("ktc_map_dynasty", ktc_map_dynasty, new Date());

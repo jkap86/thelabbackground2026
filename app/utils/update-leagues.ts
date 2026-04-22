@@ -16,6 +16,7 @@ import {
   SleeperUser,
 } from "../lib/types/sleeper-types";
 import { Trade } from "../lib/types/trades-types";
+import axios from "axios";
 import axiosInstance from "../lib/axios-instance.js";
 import pool from "../lib/pool.js";
 import { PoolClient } from "pg";
@@ -30,6 +31,7 @@ export async function updateLeagues(
   const tradesToUpsert: Trade[] = [];
   const draftsToUpsert: Draft[] = [];
   const draftPicksToUpsert: DraftPickRecord[] = [];
+  const leaguesToDelete: string[] = [];
 
   const currentSeason =
     process.env.SEASON || new Date().getFullYear().toString();
@@ -163,7 +165,10 @@ export async function updateLeagues(
             season: league.data.season,
           });
         } catch (err: unknown) {
-          if (err instanceof Error) {
+          if (axios.isAxiosError(err) && err.response?.status === 404) {
+            console.log(`League ${league_id} returned 404, marking for deletion.`);
+            leaguesToDelete.push(league_id);
+          } else if (err instanceof Error) {
             console.log(err.message);
           } else {
             console.log("An unknown error occurred.");
@@ -186,12 +191,22 @@ export async function updateLeagues(
       client
     );
 
+    let deletedLeaguesCount = 0;
+    if (leaguesToDelete.length > 0) {
+      const result = await client.query(
+        `DELETE FROM leagues WHERE league_id = ANY($1)`,
+        [leaguesToDelete]
+      );
+      deletedLeaguesCount = result.rowCount ?? 0;
+    }
+
     console.log({
       newUsersCount,
       newLeaguesCount,
       newTradesCount,
       newDraftsCount,
       newDraftPicksCount,
+      deletedLeaguesCount,
     });
 
     await client.query("COMMIT");
